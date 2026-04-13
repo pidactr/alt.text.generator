@@ -70,6 +70,7 @@ h1 span{color:#c9a84c}
 .finalize-summary strong{color:#e8e4dc}
 /* Buttons */
 .btn-gold{display:inline-block;background:linear-gradient(135deg,#c9a84c,#e8d5a0);color:#0f1117;border:none;border-radius:12px;padding:14px 36px;font-size:15px;font-weight:700;font-family:Georgia,serif;cursor:pointer;text-decoration:none;box-shadow:0 4px 24px rgba(201,168,76,.3)}
+.btn-upload{display:inline-block;background:linear-gradient(135deg,#c9a84c,#e8d5a0);color:#0f1117;border:none;border-radius:12px;padding:14px 36px;font-size:15px;font-weight:700;font-family:Georgia,serif;cursor:pointer;text-decoration:none;box-shadow:0 4px 24px rgba(201,168,76,.3);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .btn-ghost{display:inline-block;background:transparent;color:#555570;border:1px solid #2a2d40;border-radius:8px;padding:10px 24px;font-size:13px;font-family:Georgia,serif;cursor:pointer;margin-top:12px}
 /* Lightbox */
 #lightbox{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.88);align-items:center;justify-content:center;cursor:zoom-out;padding:20px}
@@ -96,6 +97,11 @@ h1 span{color:#c9a84c}
 <h1>Word Document<br><span>Alt Text Generator</span></h1>
 <p class="sub">Upload a .docx file. Claude generates alt text for each image. Review, edit, approve or skip each one, then download.</p>
 
+<!-- Process new document button — shown at top after download completes -->
+<div id="new-doc-top" style="display:none;margin-bottom:20px">
+  <button class="btn-gold" onclick="resetTool()">&#x1F4C2; Process New Document</button>
+</div>
+
 <!-- API key is stored securely in Cloudflare Worker -->
 
 <!-- Upload zone -->
@@ -106,8 +112,9 @@ h1 span{color:#c9a84c}
   </div>
   <div id="upload-ui">
     <div class="upload-icon">&#x1F4C4;</div>
-    <input type="file" id="file-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"/>
-    <p class="hint">Tap to choose your Word document<br>(works on phone &amp; desktop)</p>
+    <label for="file-input" class="btn-upload">&#x1F4C2; Click here to upload .docx file</label>
+    <input type="file" id="file-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap"/>
+    <p class="hint" style="margin-top:12px">Works on phone &amp; desktop</p>
   </div>
 </div>
 
@@ -421,6 +428,9 @@ async function buildDocument(){
     var outName=(fileInput._lastName||"document").replace(/\.docx$/i,"")+"_accessible.docx";
     var a=document.createElement("a");a.href=dataUrl;a.download=outName;document.body.appendChild(a);a.click();document.body.removeChild(a);
     document.body.removeChild(overlay);
+    // Show the Process New Document button at the top of the page
+    document.getElementById("new-doc-top").style.display="block";
+    window.scrollTo({top:0,behavior:"smooth"});
     var btn=finalizeBar.querySelector("button");
     if(btn){var orig=btn.textContent;btn.textContent="Downloaded!";btn.style.background="linear-gradient(135deg,#2a6e30,#4caf58)";setTimeout(function(){btn.textContent=orig;btn.style.background=""},3000)}
   }catch(e){document.body.removeChild(overlay);alert("Error: "+e.message)}
@@ -436,6 +446,8 @@ function resetTool(){
   // Reset file input so same file can be re-uploaded if needed
   fileInput.value="";
   fileInput._lastName="";
+  // Hide the top new document button
+  document.getElementById("new-doc-top").style.display="none";
   // Show upload zone again
   zone.style.display="";
   setBusy(false);
