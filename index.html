@@ -124,6 +124,8 @@ h1 span{color:#c9a84c}
 <div id="finalize-bar">
   <div class="finalize-summary" id="finalize-summary"></div>
   <button class="btn-gold" onclick="buildDocument()">&#x2713; Apply to Document &amp; Download</button>
+  <br>
+  <button class="btn-ghost" style="margin-top:12px" onclick="resetTool()">&#x1F4C2; Process New Document</button>
 </div>
 
 <!-- How it works -->
@@ -425,12 +427,20 @@ async function buildDocument(){
 }
 
 function resetTool(){
+  // Clear all state
   zipObj=null;rawDocXml=null;foundImages=null;imageItems=[];
+  // Clear UI
   cardsEl.innerHTML="";
   reviewPanel.classList.remove("on");
   finalizeBar.classList.remove("on");
+  // Reset file input so same file can be re-uploaded if needed
+  fileInput.value="";
+  fileInput._lastName="";
+  // Show upload zone again
   zone.style.display="";
   setBusy(false);
+  // Scroll back to top smoothly
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 
 // ============================================================
