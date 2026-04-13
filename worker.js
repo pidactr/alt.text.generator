@@ -1,6 +1,6 @@
 export default {
   async fetch(request, env) {
-    const ALLOWED_ORIGIN = "https://pidactr.github.io/alt.text.generator/";
+    const ALLOWED_ORIGIN = "https://pidactr.github.io";
 
     if (request.method === "OPTIONS") {
       return new Response(null, {
