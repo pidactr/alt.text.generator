@@ -1,0 +1,510 @@
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Alt Text Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:linear-gradient(135deg,#0f1117 0%,#1a1d2e 50%,#0d1520 100%);font-family:Georgia,"Times New Roman",serif;color:#e8e4dc;display:flex;flex-direction:column;align-items:center;padding:36px 20px 60px}
+.eyebrow{font-size:11px;letter-spacing:4px;text-transform:uppercase;background:linear-gradient(135deg,#c9a84c,#e8d5a0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px}
+h1{font-size:clamp(24px,5vw,38px);font-weight:400;line-height:1.2;letter-spacing:-.5px;margin-bottom:12px;text-align:center}
+h1 span{color:#c9a84c}
+.sub{color:#8a8a9a;font-size:14px;line-height:1.7;text-align:center;max-width:500px;margin-bottom:28px}
+/* API key */
+#api-key-section{width:100%;max-width:520px;background:rgba(255,255,255,.02);border:1px solid #2a2d40;border-radius:14px;padding:18px 22px;margin-bottom:22px}
+.api-key-label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8a8aaa;margin-bottom:8px;display:block}
+.api-key-row{display:flex;gap:8px;align-items:center}
+#api-key-input{flex:1;background:#0d1015;border:1px solid #2a2d40;border-radius:8px;padding:11px 14px;color:#e8e4dc;font-family:"Courier New",monospace;font-size:13px;outline:none;transition:border-color .2s}
+#api-key-input:focus{border-color:#c9a84c}
+#api-key-input::placeholder{color:#3a3d50}
+.btn-key{padding:11px 18px;background:rgba(201,168,76,.12);border:1px solid #c9a84c;border-radius:8px;color:#c9a84c;font-size:13px;font-family:Georgia,serif;cursor:pointer;white-space:nowrap;transition:background .2s;flex-shrink:0}
+.btn-key:hover{background:rgba(201,168,76,.22)}
+.key-status{font-size:12px;margin-top:8px;min-height:16px}
+.key-status.ok{color:#5dbe6e}.key-status.err{color:#e05555}.key-status.info{color:#8a8aaa}
+/* Upload zone */
+.zone{width:100%;max-width:520px;border:2px dashed #2a2d40;border-radius:16px;padding:40px 24px;text-align:center;transition:border-color .3s,background .3s;background:rgba(255,255,255,.02);margin-bottom:24px}
+.zone.drag{border-color:#c9a84c;background:rgba(201,168,76,.06)}
+.upload-icon{font-size:40px;margin-bottom:16px;opacity:.75}
+#file-input{display:block;width:100%;max-width:300px;margin:0 auto 12px;padding:14px 18px;font-size:15px;font-family:Georgia,serif;font-weight:700;color:#0f1117;background:linear-gradient(135deg,#c9a84c,#e8d5a0);border:none;border-radius:12px;cursor:pointer;box-shadow:0 4px 20px rgba(201,168,76,.35);-webkit-appearance:none;appearance:none}
+#file-input::-webkit-file-upload-button,#file-input::file-selector-button{background:transparent;border:none;color:#0f1117;font-size:15px;font-family:Georgia,serif;font-weight:700;cursor:pointer;padding:0;margin-right:8px}
+.hint{color:#555570;font-size:13px;line-height:1.6}
+/* Spinner */
+.spin-wrap{display:none;flex-direction:column;align-items:center;gap:12px;padding:8px 0}
+.spin-wrap.on{display:flex}
+.spinner{width:40px;height:40px;border:3px solid #2a2d40;border-top-color:#c9a84c;border-radius:50%;animation:spin .8s linear infinite}
+.spin-label{color:#c9a84c;font-size:14px;text-align:center}
+/* Review panel */
+#review-panel{display:none;width:100%;max-width:600px}
+#review-panel.on{display:block}
+.review-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px}
+.review-title{font-size:18px;font-weight:400;color:#c9a84c}
+.progress-text{color:#555570;font-size:13px}
+.image-card{background:rgba(255,255,255,.03);border:1px solid #2a2d40;border-radius:14px;padding:20px;margin-bottom:16px}
+.image-card.approved{border-color:#3a6640}
+.image-card.skipped{border-color:#3a3040;opacity:.6}
+.card-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.img-thumb{width:auto;height:auto;max-width:200px;max-height:260px;object-fit:contain;border-radius:10px;background:#111;border:1px solid #2a2d40;flex-shrink:0;display:block;cursor:zoom-in}
+.img-thumb-placeholder{width:144px;height:144px;border-radius:10px;background:#1a1d2e;border:1px solid #2a2d40;display:flex;align-items:center;justify-content:center;font-size:40px;flex-shrink:0}
+.card-meta{flex:1;min-width:0}
+.img-label{font-size:14px;color:#c9a84c;margin-bottom:4px}
+.img-filename{font-size:12px;color:#555570;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alt-label{font-size:12px;color:#8a8aaa;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
+.alt-textarea{width:100%;background:#0d1015;border:1px solid #2a2d40;border-radius:8px;padding:10px 12px;color:#e8e4dc;font-family:Georgia,serif;font-size:14px;line-height:1.6;resize:none;outline:none;overflow:hidden;transition:border-color .2s;box-sizing:border-box}
+.alt-textarea:focus{border-color:#c9a84c}
+.card-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn-approve{padding:9px 20px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:Georgia,serif;font-weight:700;background:#2a4a2e;color:#5dbe6e;transition:background .2s}
+.btn-approve:hover{background:#334d36}
+.btn-approve.active{background:#1e6b26;color:#a8f0b0}
+.btn-skip{padding:9px 20px;border:1px solid #3a2d40;border-radius:8px;cursor:pointer;font-size:13px;font-family:Georgia,serif;color:#8a6aaa;background:transparent;transition:border-color .2s,color .2s}
+.btn-skip:hover{border-color:#6a4a8a;color:#c9a4e8}
+.status-badge{font-size:12px;padding:4px 10px;border-radius:20px;font-family:Georgia,serif;margin-left:auto;align-self:center}
+.badge-approved{background:#1e3a22;color:#5dbe6e}
+.badge-skipped{background:#2a1a30;color:#8a6aaa}
+.badge-pending{background:#1a1d2e;color:#555570}
+/* Finalize bar */
+#finalize-bar{display:none;width:100%;max-width:600px;background:rgba(0,0,0,.3);border:1px solid #2a2d40;border-radius:12px;padding:18px 20px;margin-top:8px;text-align:center}
+#finalize-bar.on{display:block}
+.finalize-summary{color:#8a8aaa;font-size:13px;margin-bottom:14px}
+.finalize-summary strong{color:#e8e4dc}
+/* Buttons */
+.btn-gold{display:inline-block;background:linear-gradient(135deg,#c9a84c,#e8d5a0);color:#0f1117;border:none;border-radius:12px;padding:14px 36px;font-size:15px;font-weight:700;font-family:Georgia,serif;cursor:pointer;text-decoration:none;box-shadow:0 4px 24px rgba(201,168,76,.3)}
+.btn-ghost{display:inline-block;background:transparent;color:#555570;border:1px solid #2a2d40;border-radius:8px;padding:10px 24px;font-size:13px;font-family:Georgia,serif;cursor:pointer;margin-top:12px}
+/* Lightbox */
+#lightbox{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.88);align-items:center;justify-content:center;cursor:zoom-out;padding:20px}
+#lightbox.on{display:flex}
+#lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;box-shadow:0 8px 60px rgba(0,0,0,.8);cursor:default}
+#lightbox-close{position:fixed;top:16px;right:20px;font-size:32px;color:#e8e4dc;cursor:pointer;background:none;border:none;line-height:1;opacity:.8;z-index:1001}
+#lightbox-close:hover{opacity:1}
+/* How it works */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:520px;margin-top:48px}
+.card{background:rgba(255,255,255,.02);border:1px solid #1e2030;border-radius:12px;padding:16px 10px;text-align:center}
+.ci{font-size:20px;margin-bottom:6px}.ct{color:#c9a84c;font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px}.cd{color:#555570;font-size:11px;line-height:1.5}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
+</div>
+
+<div class="eyebrow">Accessibility Tools</div>
+<h1>Word Document<br><span>Alt Text Generator</span></h1>
+<p class="sub">Upload a .docx file. Claude generates alt text for each image. Review, edit, approve or skip each one, then download.</p>
+
+<!-- API Key -->
+<div id="api-key-section">
+  <label class="api-key-label" for="api-key-input">🔑 Enter your Claude API key to analyze images</label>
+  <div class="api-key-row">
+    <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false" disabled="">
+    <button class="btn-key" onclick="saveKey()">Save Key</button>
+  <button id="change-key-btn" class="btn-key">Change</button></div>
+  <div class="key-status ok" id="key-status">Key saved for this session. You can now upload your document.</div>
+<div id="bake-key-wrap" style="margin-top: 14px; padding-top: 14px; border-top: 1px solid rgb(42, 45, 64);"><div style="font-size:12px;color:#8a8aaa;margin-bottom:8px;">Want to skip entering your key every time? Download a version with your key already saved inside.</div><button class="btn-key" style="width:100%;text-align:center;padding:12px" onclick="downloadWithKey()">Download tool with key saved inside</button></div></div>
+
+<!-- Upload zone -->
+<div class="zone" id="zone">
+  <div class="spin-wrap" id="spinner">
+    <div class="spinner"></div>
+    <div class="spin-label" id="slabel">Analyzing images…</div>
+  </div>
+  <div id="upload-ui">
+    <div class="upload-icon">📄</div>
+    <input type="file" id="file-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+    <p class="hint">Tap to choose your Word document<br>(works on phone &amp; desktop)</p>
+  </div>
+</div>
+
+<!-- Review panel -->
+<div id="review-panel">
+  <div class="review-header">
+    <div class="review-title">Review Alt Text</div>
+    <div class="progress-text" id="progress-text"></div>
+  </div>
+  <div id="cards-container"></div>
+</div>
+
+<!-- Finalize bar -->
+<div id="finalize-bar">
+  <div class="finalize-summary" id="finalize-summary"></div>
+  <button class="btn-gold" onclick="buildDocument()">✓ Apply to Document &amp; Download</button>
+</div>
+
+<!-- How it works -->
+<div class="cards">
+  <div class="card"><div class="ci">📂</div><div class="ct">Upload</div><div class="cd">Choose your Word doc from phone or computer</div></div>
+  <div class="card"><div class="ci">✏️</div><div class="ct">Review</div><div class="cd">Approve, edit, or skip each AI-generated description</div></div>
+  <div class="card"><div class="ci">✅</div><div class="ct">Download</div><div class="cd">Alt text embedded for screen readers — no visible captions added</div></div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURATION — key baked in by "Download with key" feature
+// ============================================================
+// %%HARDCODED_KEY%% token is replaced when user downloads with key saved
+var _BAKED = "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";
+var savedApiKey = (_BAKED.indexOf("%%") === 0) ? "" : _BAKED;
+
+// ============================================================
+// API KEY UI
+// ============================================================
+function saveKey() {
+  var input  = document.getElementById("api-key-input");
+  var status = document.getElementById("key-status");
+  var val    = input.value.trim();
+  if (!val) { status.className="key-status err"; status.textContent="Please enter an API key."; return; }
+  if (val.indexOf("sk-ant-") !== 0) { status.className="key-status err"; status.textContent="That doesn't look like a valid Anthropic API key (should start with sk-ant-)."; return; }
+  savedApiKey = val;
+  status.className="key-status ok";
+  status.textContent="Key saved for this session. You can now upload your document.";
+  input.value = val.slice(0,14) + "********************************";
+  input.disabled = true;
+  // Add change + bake-in buttons
+  var row = document.querySelector(".api-key-row");
+  if (!document.getElementById("change-key-btn")) {
+    var cb = document.createElement("button"); cb.id="change-key-btn"; cb.className="btn-key"; cb.textContent="Change"; cb.onclick=changeKey; row.appendChild(cb);
+  }
+  var sec = document.getElementById("api-key-section");
+  if (!document.getElementById("bake-key-wrap")) {
+    var wrap = document.createElement("div"); wrap.id="bake-key-wrap";
+    wrap.style.cssText="margin-top:14px;padding-top:14px;border-top:1px solid #2a2d40";
+    wrap.innerHTML='<div style="font-size:12px;color:#8a8aaa;margin-bottom:8px;">Want to skip entering your key every time? Download a version with your key already saved inside.</div><button class="btn-key" style="width:100%;text-align:center;padding:12px" onclick="downloadWithKey()">Download tool with key saved inside</button>';
+    sec.appendChild(wrap);
+  }
+}
+
+function changeKey() {
+  var input = document.getElementById("api-key-input");
+  var status = document.getElementById("key-status");
+  var cb = document.getElementById("change-key-btn");
+  var bw = document.getElementById("bake-key-wrap");
+  savedApiKey = ""; input.value=""; input.disabled=false; input.focus();
+  if (cb) cb.remove(); if (bw) bw.remove();
+  status.className="key-status info"; status.textContent="Enter your new API key and click Save Key.";
+}
+
+function downloadWithKey() {
+  var html = document.documentElement.outerHTML;
+  var baked = html.replace(/var _BAKED = "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";/g, 'var _BAKED = "' + savedApiKey + '";');
+  var blob = new Blob([baked], {type:"text/html"});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a"); a.href=url; a.download="word-alt-text-tool-with-key.html";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  var status = document.getElementById("key-status");
+  status.className="key-status ok"; status.textContent="Downloaded! Use that file going forward — your key is already saved inside it.";
+}
+
+function getApiKey() { return savedApiKey; }
+
+// On page load: if key is baked in, show compact status instead of entry form
+document.addEventListener("DOMContentLoaded", function() {
+  if (savedApiKey) {
+    var sec = document.getElementById("api-key-section");
+    sec.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><span style="font-size:13px;color:#5dbe6e">&#x2713; API key is configured</span><button class="btn-key" onclick="showKeySection()" style="padding:7px 14px;font-size:12px">Change Key</button></div>';
+  }
+});
+
+function showKeySection() {
+  var sec = document.getElementById("api-key-section"); savedApiKey="";
+  sec.innerHTML = '<label class="api-key-label" for="api-key-input">&#x1F511; Enter your Claude API key</label><div class="api-key-row"><input type="password" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false"/><button class="btn-key" onclick="saveKey()">Save Key</button></div><div class="key-status info" id="key-status">Your key is stored in memory only.</div>';
+}
+
+// ============================================================
+// LIGHTBOX
+// ============================================================
+function openLightbox(src) {
+  document.getElementById("lightbox-img").src = src;
+  document.getElementById("lightbox").classList.add("on");
+  document.body.style.overflow = "hidden";
+}
+function closeLightbox() {
+  document.getElementById("lightbox").classList.remove("on");
+  document.getElementById("lightbox-img").src = "";
+  document.body.style.overflow = "";
+}
+document.addEventListener("keydown", function(e) { if (e.key === "Escape") closeLightbox(); });
+
+// ============================================================
+// AUTO-RESIZE TEXTAREAS
+// ============================================================
+function autoResize(ta) { ta.style.height="auto"; ta.style.height=ta.scrollHeight+"px"; }
+function autoResizeAll() { document.querySelectorAll(".alt-textarea").forEach(autoResize); }
+
+// ============================================================
+// STATE
+// ============================================================
+var zipObj      = null;
+var rawDocXml   = null;
+var foundImages = null;
+var imageItems  = [];
+
+// ============================================================
+// DOM REFS
+// ============================================================
+var fileInput   = document.getElementById("file-input");
+var uploadUI    = document.getElementById("upload-ui");
+var spinnerEl   = document.getElementById("spinner");
+var slabel      = document.getElementById("slabel");
+var zone        = document.getElementById("zone");
+var reviewPanel = document.getElementById("review-panel");
+var cardsEl     = document.getElementById("cards-container");
+var progressText= document.getElementById("progress-text");
+var finalizeBar = document.getElementById("finalize-bar");
+var finalizeSumEl = document.getElementById("finalize-summary");
+
+// ============================================================
+// DRAG & DROP
+// ============================================================
+zone.addEventListener("dragover",  function(e){e.preventDefault();zone.classList.add("drag")});
+zone.addEventListener("dragleave", function(){zone.classList.remove("drag")});
+zone.addEventListener("drop", function(e){e.preventDefault();zone.classList.remove("drag");var f=e.dataTransfer.files[0];if(f)run(f)});
+fileInput.addEventListener("change", function(){var f=fileInput.files[0];if(f)run(f);fileInput.value=""});
+
+// ============================================================
+// HELPERS
+// ============================================================
+function readBuf(file){
+  return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result)};r.onerror=function(){rej(new Error("Read failed"))};r.readAsArrayBuffer(file)});
+}
+function bufToB64(buf){
+  var s="";var b=new Uint8Array(buf);for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);
+}
+function mimeFor(ct){
+  if(!ct) return "image/png";
+  if(ct.indexOf("jpeg")!==-1||ct.indexOf("jpg")!==-1) return "image/jpeg";
+  if(ct.indexOf("png")!==-1) return "image/png";
+  if(ct.indexOf("gif")!==-1) return "image/gif";
+  if(ct.indexOf("webp")!==-1) return "image/webp";
+  return "image/png";
+}
+function escXml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;")}
+function setBusy(on,label){spinnerEl.classList.toggle("on",on);uploadUI.style.display=on?"none":"block";if(label)slabel.textContent=label}
+
+// ============================================================
+// THUMBNAIL (browser-native orientation correction)
+// ============================================================
+function makeThumbnail(dataUrl){
+  return new Promise(function(res){
+    var img=new Image();
+    img.onload=function(){
+      var MAX=400;
+      var scale=Math.min(1,MAX/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+      var w=Math.round((img.naturalWidth||img.width)*scale);
+      var h=Math.round((img.naturalHeight||img.height)*scale);
+      var canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      res(canvas.toDataURL("image/jpeg",0.88));
+    };
+    img.onerror=function(){res(dataUrl)};
+    img.style.imageOrientation="from-image";
+    img.src=dataUrl;
+  });
+}
+
+// ============================================================
+// DOCX HELPERS
+// ============================================================
+function findImageParas(docXml){
+  var parts=docXml.split("</w:p>");
+  var found=[];
+  for(var i=0;i<parts.length-1;i++){
+    var seg=parts[i];
+    if(seg.indexOf("w:drawing")!==-1||seg.indexOf("v:imagedata")!==-1||seg.indexOf("pic:pic")!==-1){
+      var m=seg.match(/r:embed="(rId\d+)"/);
+      if(m) found.push({index:i,rId:m[1]});
+    }
+  }
+  return {parts:parts,found:found};
+}
+
+function stripAltText(seg){
+  seg=seg.replace(/(wp:docPr[^>]*?)\s+descr="[^"]*"/g,"$1");
+  seg=seg.replace(/(wp:docPr[^>]*?)\s+title="[^"]*"/g,"$1");
+  return seg;
+}
+
+function setAltText(seg,desc){
+  var e=escXml(desc);
+  if(/wp:docPr[^>]*\sdescr=/.test(seg)) return seg.replace(/(wp:docPr[^>]*\s)descr="[^"]*"/,"$1descr=\""+e+"\"");
+  if(/wp:docPr/.test(seg)) return seg.replace(/(wp:docPr\s)/,"$1descr=\""+e+"\" ");
+  return seg;
+}
+
+function applyAltTexts(approvedMap){
+  var r=findImageParas(rawDocXml);
+  var parts=r.parts; var found=r.found;
+  var result=parts.slice();
+  for(var i=0;i<found.length;i++){
+    var idx=found[i].index; var rId=found[i].rId;
+    result[idx]=stripAltText(result[idx]);
+    var alt=approvedMap[rId];
+    if(typeof alt==="string"&&alt.length>0) result[idx]=setAltText(result[idx],alt);
+  }
+  return result.join("</w:p>");
+}
+
+// ============================================================
+// CLAUDE API
+// ============================================================
+async function describeImage(b64,mime){
+  var key=getApiKey();
+  if(!key) throw new Error("No API key — please enter your Claude API key at the top.");
+  var res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:120,messages:[{role:"user",content:[
+      {type:"image",source:{type:"base64",media_type:mime,data:b64}},
+      {type:"text",text:"Write a single sentence of alt text for this image for use in a Word document. Be specific and descriptive. Do not start with 'Image of' or 'Picture of'. Output the sentence only, nothing else."}
+    ]}]})
+  });
+  if(!res.ok) throw new Error("API "+res.status+": "+await res.text());
+  var d=await res.json();
+  return d.content.map(function(b){return b.text||""}).join("").trim();
+}
+
+// ============================================================
+// REVIEW UI
+// ============================================================
+function updateProgress(){
+  var approved=imageItems.filter(function(i){return i.status==="approved"}).length;
+  var skipped=imageItems.filter(function(i){return i.status==="skipped"}).length;
+  var pending=imageItems.filter(function(i){return i.status==="pending"}).length;
+  var total=imageItems.length;
+  progressText.textContent=approved+" approved / "+skipped+" skipped / "+pending+" pending";
+  var summary="<strong>"+approved+" of "+total+"</strong> image"+(total!==1?"s":"")+" will get alt text.";
+  if(approved===0) summary+=' <span style="color:#8a8aaa">Approve at least one to add alt text.</span>';
+  if(pending>0) summary+=' <span style="color:#e0a040">'+pending+' still pending &mdash; will be skipped.</span>';
+  finalizeSumEl.innerHTML=summary;
+  if(total>0) finalizeBar.classList.add("on");
+}
+
+function renderCard(item,cardEl){
+  var badge=item.status==="approved"?'<span class="status-badge badge-approved">Approved</span>':item.status==="skipped"?'<span class="status-badge badge-skipped">Skipped</span>':'<span class="status-badge badge-pending">Pending</span>';
+  var thumb=item.thumbUrl?'<img class="img-thumb" src="'+item.thumbUrl+'" alt="Tap to enlarge" title="Click to enlarge" onclick="openLightbox(\''+(item.fullUrl||item.thumbUrl)+'\')" />':'<div class="img-thumb-placeholder">&#x1F5BC;&#xFE0F;</div>';
+  cardEl.className="image-card"+(item.status==="approved"?" approved":item.status==="skipped"?" skipped":"");
+  cardEl.innerHTML='<div class="card-header">'+thumb+'<div class="card-meta"><div class="img-label">Image '+item.num+'</div><div class="img-filename">'+item.filename+'</div></div>'+badge+'</div><div class="alt-label">Alt Text</div><textarea class="alt-textarea" id="ta-'+item.rId+'" oninput="autoResize(this)">'+escHtml(item.altText||"")+'</textarea><div class="card-actions"><button class="btn-approve'+(item.status==="approved"?" active":"")+'" onclick="approveItem(\''+item.rId+'\')">Approve</button><button class="btn-skip'+(item.status==="skipped"?" active":"")+'" onclick="skipItem(\''+item.rId+'\')">Skip</button></div>';
+}
+
+function escHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+
+function approveItem(rId){
+  var item=imageItems.find(function(i){return i.rId===rId});if(!item)return;
+  var ta=document.getElementById("ta-"+rId);if(ta)item.altText=ta.value.trim();
+  item.status=(item.status==="approved")?"pending":"approved";
+  var card=document.getElementById("card-"+rId);if(card){renderCard(item,card);var ta2=document.getElementById("ta-"+rId);if(ta2)autoResize(ta2)}
+  updateProgress();
+}
+
+function skipItem(rId){
+  var item=imageItems.find(function(i){return i.rId===rId});if(!item)return;
+  item.status=(item.status==="skipped")?"pending":"skipped";
+  var card=document.getElementById("card-"+rId);if(card){renderCard(item,card);var ta=document.getElementById("ta-"+rId);if(ta)autoResize(ta)}
+  updateProgress();
+}
+
+// ============================================================
+// BUILD & DOWNLOAD
+// ============================================================
+async function buildDocument(){
+  var overlay=document.createElement("div");
+  overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px";
+  overlay.innerHTML='<div class="spinner" style="width:48px;height:48px;border-width:4px"></div><div style="color:#c9a84c;font-size:15px;font-family:Georgia,serif">Building document&hellip;</div>';
+  document.body.appendChild(overlay);
+  try{
+    var approvedMap={};
+    imageItems.forEach(function(item){
+      if(item.status==="approved"&&typeof item.altText==="string"&&item.altText.trim().length>0)
+        approvedMap[item.rId]=item.altText.trim();
+    });
+    var patchedXml=applyAltTexts(approvedMap);
+    zipObj.file("word/document.xml",patchedXml);
+    var b64=await zipObj.generateAsync({type:"base64",compression:"DEFLATE"});
+    var dataUrl="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,"+b64;
+    var outName=(fileInput._lastName||"document").replace(/\.docx$/i,"")+"_accessible.docx";
+    var a=document.createElement("a");a.href=dataUrl;a.download=outName;document.body.appendChild(a);a.click();document.body.removeChild(a);
+    document.body.removeChild(overlay);
+    var btn=finalizeBar.querySelector("button");
+    if(btn){var orig=btn.textContent;btn.textContent="Downloaded!";btn.style.background="linear-gradient(135deg,#2a6e30,#4caf58)";setTimeout(function(){btn.textContent=orig;btn.style.background=""},3000)}
+  }catch(e){document.body.removeChild(overlay);alert("Error: "+e.message)}
+}
+
+function resetTool(){
+  zipObj=null;rawDocXml=null;foundImages=null;imageItems=[];
+  cardsEl.innerHTML="";
+  reviewPanel.classList.remove("on");
+  finalizeBar.classList.remove("on");
+  zone.style.display="";
+  setBusy(false);
+}
+
+// ============================================================
+// MAIN — process uploaded file
+// ============================================================
+async function run(file){
+  var isDocx=file.name.match(/\.docx$/i)||file.type==="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if(!isDocx){alert("Please choose a .docx Word document.");return}
+  if(!getApiKey()){alert("Please enter and save your Claude API key at the top of the page first.");document.getElementById("api-key-input")&&document.getElementById("api-key-input").focus();return}
+  fileInput._lastName=file.name;
+  imageItems=[];cardsEl.innerHTML="";reviewPanel.classList.remove("on");finalizeBar.classList.remove("on");
+  setBusy(true,"Loading "+file.name+"...");
+  try{
+    var buf=await readBuf(file);
+    zipObj=await JSZip.loadAsync(buf);
+    // rId to media path
+    var relsXml=await zipObj.file("word/_rels/document.xml.rels").async("text");
+    var rIdToPath={};
+    var relRe=/Id="(rId\d+)"[^>]*Type="[^"]*\/image"[^>]*Target="([^"]+)"/g;
+    var m;while((m=relRe.exec(relsXml))!==null)rIdToPath[m[1]]="word/"+m[2];
+    // Content types
+    var ctXml=await zipObj.file("[Content_Types].xml").async("text");
+    var extToMime={};var ctRe=/Extension="(\w+)"[^/]*ContentType="([^"]+)"/g;
+    while((m=ctRe.exec(ctXml))!==null)extToMime[m[1].toLowerCase()]=m[2];
+    // Find images in document order
+    rawDocXml=await zipObj.file("word/document.xml").async("text");
+    var r=findImageParas(rawDocXml);foundImages=r.found;
+    if(r.found.length===0){alert("No images found in this document.");setBusy(false);return}
+    // Show review panel, hide upload zone
+    zone.style.display="none";reviewPanel.classList.add("on");setBusy(false);
+    // Analyze each image
+    for(var i=0;i<r.found.length;i++){
+      var rId=r.found[i].rId;
+      var path=rIdToPath[rId];
+      var filename=path?path.split("/").pop():"unknown";
+      var ext=filename.split(".").pop().toLowerCase();
+      var mime=mimeFor(extToMime[ext]);
+      var item={rId:rId,filename:filename,num:i+1,thumbUrl:null,fullUrl:null,altText:"",status:"pending"};
+      imageItems.push(item);
+      var cardEl=document.createElement("div");cardEl.id="card-"+rId;cardsEl.appendChild(cardEl);
+      renderCard(item,cardEl);
+      var ta=document.getElementById("ta-"+rId);
+      if(ta){ta.value="Generating...";ta.disabled=true;autoResize(ta)}
+      slabel.textContent="Analyzing image "+(i+1)+" of "+r.found.length+"...";
+      progressText.textContent="Analyzing "+(i+1)+" of "+r.found.length+"...";
+      try{
+        var imgBuf=await zipObj.file(path).async("arraybuffer");
+        var b64=bufToB64(imgBuf);
+        var rawUrl="data:"+mime+";base64,"+b64;
+        item.fullUrl=rawUrl;
+        item.thumbUrl=await makeThumbnail(rawUrl);
+        var alt=await describeImage(b64,mime);
+        item.altText=alt;item.status="pending";
+        if(ta){ta.value=alt;ta.disabled=false;autoResize(ta)}
+        renderCard(item,cardEl);autoResizeAll();
+      }catch(e){
+        item.altText="";item.status="skipped";
+        if(ta){ta.value="";ta.disabled=false}
+        renderCard(item,cardEl);
+        var errDiv=document.createElement("div");errDiv.style.cssText="font-size:12px;color:#e05555;margin-top:6px;font-family:Courier New,monospace";
+        errDiv.textContent="Could not analyze: "+e.message;cardEl.appendChild(errDiv);
+      }
+      updateProgress();
+    }
+    updateProgress();
+  }catch(e){alert("Error: "+e.message);setBusy(false);zone.style.display=""}
+}
+</script>
+
+
+</body></html>
