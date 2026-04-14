@@ -1,4 +1,0 @@
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Basic-Auth = "AHaylock:LMBLTelluride19!!"
