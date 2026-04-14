@@ -66,11 +66,9 @@ h1 span{color:#c9a84c}
 .btn-approve{padding:9px 20px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:Georgia,serif;font-weight:700;background:#2a4a2e;color:#5dbe6e;transition:background .2s}
 .btn-approve:hover{background:#334d36}
 .btn-approve.active{background:#1e6b26;color:#a8f0b0}
-.btn-skip{padding:9px 20px;border:1px solid #3a2d40;border-radius:8px;cursor:pointer;font-size:13px;font-family:Georgia,serif;color:#8a6aaa;background:transparent;transition:border-color .2s,color .2s}
-.btn-skip:hover{border-color:#6a4a8a;color:#c9a4e8}
+
 .status-badge{font-size:12px;padding:4px 10px;border-radius:20px;font-family:Georgia,serif;margin-left:auto;align-self:center}
 .badge-approved{background:#1e3a22;color:#5dbe6e}
-.badge-skipped{background:#2a1a30;color:#8a6aaa}
 .badge-pending{background:#1a1d2e;color:#555570}
 /* Finalize bar */
 #finalize-bar{display:none;width:100%;max-width:600px;background:rgba(0,0,0,.3);border:1px solid #2a2d40;border-radius:12px;padding:18px 20px;margin-top:8px;text-align:center}
@@ -115,7 +113,7 @@ h1 span{color:#c9a84c}
 
 <div class="eyebrow">Accessibility Tools</div>
 <h1>Word Document<br><span>Alt Text Generator</span></h1>
-<p class="sub">Upload a .docx file. Claude generates alt text for each image. Review, edit, approve or skip each one, then download.</p>
+<p class="sub">Upload a .docx file. Claude generates alt text for each image. Review and edit each description, then click Approve on the ones you want. Only approved images get alt text — pending images are left unchanged.</p>
 
 <!-- Process new document button — shown at top after download completes -->
 <div id="new-doc-top" style="display:none;margin-bottom:20px">
@@ -160,7 +158,7 @@ h1 span{color:#c9a84c}
 <!-- How it works -->
 <div class="cards">
   <div class="card"><div class="ci">&#x1F4C2;</div><div class="ct">Upload</div><div class="cd">Choose your Word doc from phone or computer</div></div>
-  <div class="card"><div class="ci">&#x270F;&#xFE0F;</div><div class="ct">Review</div><div class="cd">Approve, edit, or skip each AI-generated description</div></div>
+  <div class="card"><div class="ci">&#x270F;&#xFE0F;</div><div class="ct">Review</div><div class="cd">Edit and approve the descriptions you want to keep</div></div>
   <div class="card"><div class="ci">&#x2705;</div><div class="ct">Download</div><div class="cd">Alt text embedded for screen readers &mdash; no visible captions added</div></div>
 </div>
 
@@ -446,7 +444,7 @@ async function describeImage(b64,mime){
 // REVIEW UI
 // ============================================================
 function approveAll(){
-  // Grab latest textarea values first, then approve everything
+  // Grab latest textarea values then approve all images that have alt text
   imageItems.forEach(function(item){
     var ta=document.getElementById("ta-"+item.rId);
     if(ta && ta.value.trim().length>0){
@@ -468,21 +466,20 @@ function approveAll(){
 
 function updateProgress(){
   var approved=imageItems.filter(function(i){return i.status==="approved"}).length;
-  var skipped=imageItems.filter(function(i){return i.status==="skipped"}).length;
   var pending=imageItems.filter(function(i){return i.status==="pending"}).length;
   var total=imageItems.length;
-  progressText.textContent=approved+" approved / "+skipped+" skipped / "+pending+" pending";
+  progressText.textContent=approved+" approved / "+pending+" pending";
   var summary="<strong>"+approved+" of "+total+"</strong> image"+(total!==1?"s":"")+" will get alt text.";
-  if(approved===0) summary+=' <span style="color:#8a8aaa">Approve at least one to add alt text.</span>';
-  if(pending>0) summary+=' <span style="color:#e0a040">'+pending+' still pending &mdash; will be skipped.</span>';
+  if(approved===0) summary+=' <span style="color:#8a8aaa">Approve at least one image to add alt text.</span>';
+  if(pending>0) summary+=' <span style="color:#e0a040">'+pending+' pending &mdash; these will not get alt text.</span>';
   finalizeSumEl.innerHTML=summary;
   if(total>0) finalizeBar.classList.add("on");
 }
 
 function renderCard(item,cardEl){
-  var badge=item.status==="approved"?'<span class="status-badge badge-approved">Approved</span>':item.status==="skipped"?'<span class="status-badge badge-skipped">Skipped</span>':'<span class="status-badge badge-pending">Pending</span>';
+  var badge=item.status==="approved"?'<span class="status-badge badge-approved">&#x2713; Approved &mdash; alt text will be added</span>':'<span class="status-badge badge-pending">Pending &mdash; alt text will NOT be added</span>';
 
-  cardEl.className="image-card"+(item.status==="approved"?" approved":item.status==="skipped"?" skipped":"");
+  cardEl.className="image-card"+(item.status==="approved"?" approved":"");
 
   // No onclick attributes in innerHTML — base64 data in onclick corrupts the HTML parser
   // for all subsequent cards. Use data attributes + addEventListener instead.
@@ -498,8 +495,8 @@ function renderCard(item,cardEl){
     '<div class="alt-label">Alt Text</div>'+
     '<textarea class="alt-textarea" id="ta-'+item.rId+'" oninput="autoResize(this)">'+escHtml(item.altText||"")+'</textarea>'+
     '<div class="card-actions">'+
-      '<button class="btn-approve'+(item.status==="approved"?" active":"")+'">Approve</button>'+
-      '<button class="btn-skip'+(item.status==="skipped"?" active":"")+'">Skip</button>'+
+      '<button class="btn-approve'+(item.status==="approved"?" active":"")+'">'+
+        (item.status==="approved"?"&#x2713; Approved":"Approve")+'</button>'+
     '</div>';
 
   // Wire up thumbnail click with JS — never put base64 in an HTML attribute
@@ -509,9 +506,8 @@ function renderCard(item,cardEl){
   }
 
   // Wire up buttons using closure over item.rId — guaranteed correct target
-  var buttons=cardEl.querySelectorAll(".card-actions button");
-  if(buttons[0]) (function(rid){ buttons[0].addEventListener("click",function(){ approveItem(rid); }); })(item.rId);
-  if(buttons[1]) (function(rid){ buttons[1].addEventListener("click",function(){ skipItem(rid); }); })(item.rId);
+  var approveBtn=cardEl.querySelector(".btn-approve");
+  if(approveBtn) (function(rid){ approveBtn.addEventListener("click",function(){ approveItem(rid); }); })(item.rId);
 }
 
 function escHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
@@ -524,12 +520,7 @@ function approveItem(rId){
   updateProgress();
 }
 
-function skipItem(rId){
-  var item=imageItems.find(function(i){return i.rId===rId});if(!item)return;
-  item.status=(item.status==="skipped")?"pending":"skipped";
-  var card=document.getElementById("card-"+rId);if(card){renderCard(item,card);var ta=document.getElementById("ta-"+rId);if(ta)autoResize(ta)}
-  updateProgress();
-}
+
 
 // ============================================================
 // BUILD & DOWNLOAD
@@ -540,6 +531,7 @@ async function buildDocument(){
   overlay.innerHTML='<div class="spinner" style="width:48px;height:48px;border-width:4px"></div><div style="color:#c9a84c;font-size:15px;font-family:Georgia,serif">Building document&hellip;</div>';
   document.body.appendChild(overlay);
   try{
+    // Only approved images get alt text written — pending images are left unchanged
     var approvedMap={};
     imageItems.forEach(function(item){
       if(item.status==="approved"&&typeof item.altText==="string"&&item.altText.trim().length>0)
@@ -635,7 +627,7 @@ async function run(file){
         if(ta){ta.value=alt;ta.disabled=false;autoResize(ta)}
         renderCard(item,cardEl);autoResizeAll();
       }catch(e){
-        item.altText="";item.status="skipped";
+        item.altText="";item.status="pending";
         if(ta){ta.value="";ta.disabled=false}
         renderCard(item,cardEl);
         var errDiv=document.createElement("div");errDiv.style.cssText="font-size:12px;color:#e05555;margin-top:6px;font-family:Courier New,monospace";
