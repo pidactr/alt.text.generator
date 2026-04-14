@@ -7,6 +7,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+#pw-gate{position:fixed;inset:0;background:#0f1117;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px}
+#pw-gate.hidden{display:none}
+#pw-box{background:rgba(255,255,255,.03);border:1px solid #2a2d40;border-radius:14px;padding:36px 32px;text-align:center;max-width:360px;width:90%}
+#pw-title{font-size:22px;color:#c9a84c;font-family:Georgia,serif;margin-bottom:6px}
+#pw-sub{font-size:13px;color:#555570;margin-bottom:24px}
+#pw-input{width:100%;background:#0d1015;border:1px solid #2a2d40;border-radius:8px;padding:12px 14px;color:#e8e4dc;font-size:15px;outline:none;text-align:center;letter-spacing:2px;font-family:Georgia,serif;box-sizing:border-box}
+#pw-input:focus{border-color:#c9a84c}
+#pw-btn{margin-top:12px;width:100%;background:linear-gradient(135deg,#c9a84c,#e8d5a0);color:#0f1117;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;font-family:Georgia,serif;cursor:pointer}
+#pw-err{color:#e05555;font-size:13px;min-height:18px;margin-top:8px}
 body{min-height:100vh;background:linear-gradient(135deg,#0f1117 0%,#1a1d2e 50%,#0d1520 100%);font-family:Georgia,"Times New Roman",serif;color:#e8e4dc;display:flex;flex-direction:column;align-items:center;padding:36px 20px 60px}
 .eyebrow{font-size:11px;letter-spacing:4px;text-transform:uppercase;background:linear-gradient(135deg,#c9a84c,#e8d5a0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px}
 h1{font-size:clamp(24px,5vw,38px);font-weight:400;line-height:1.2;letter-spacing:-.5px;margin-bottom:12px;text-align:center}
@@ -87,6 +96,17 @@ h1 span{color:#c9a84c}
 </head>
 <body>
 
+<!-- Password gate — update TOOL_PASSWORD value in the script below to change the password -->
+<div id="pw-gate">
+  <div id="pw-box">
+    <div id="pw-title">Word Alt Text Generator</div>
+    <div id="pw-sub">Enter password to continue</div>
+    <input type="password" id="pw-input" placeholder="Password" autocomplete="off"/>
+    <button id="pw-btn">Enter</button>
+    <div id="pw-err"></div>
+  </div>
+</div>
+
 <!-- Lightbox -->
 <div id="lightbox" onclick="closeLightbox()">
   <button id="lightbox-close" onclick="closeLightbox()">&#x2715;</button>
@@ -145,6 +165,33 @@ h1 span{color:#c9a84c}
 </div>
 
 <script>
+// ============================================================
+// PASSWORD GATE
+// ============================================================
+// To change the password: update the value below and upload index.html to GitHub
+var TOOL_PASSWORD = "LMBLTelluride19!!";
+
+document.addEventListener("DOMContentLoaded", function(){
+  var gate  = document.getElementById("pw-gate");
+  var input = document.getElementById("pw-input");
+  var btn   = document.getElementById("pw-btn");
+  var err   = document.getElementById("pw-err");
+
+  function tryPassword(){
+    if(input.value === TOOL_PASSWORD){
+      gate.classList.add("hidden");
+    } else {
+      err.textContent = "Incorrect password — please try again.";
+      input.value = "";
+      input.focus();
+    }
+  }
+
+  btn.addEventListener("click", tryPassword);
+  input.addEventListener("keydown", function(e){ if(e.key === "Enter") tryPassword(); });
+  input.focus();
+});
+
 // ============================================================
 // CONFIGURATION — key baked in by "Download with key" feature
 // ============================================================
