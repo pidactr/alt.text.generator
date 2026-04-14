@@ -543,11 +543,8 @@ async function run(file){
   imageItems=[];cardsEl.innerHTML="";reviewPanel.classList.remove("on");finalizeBar.classList.remove("on");
   setBusy(true,"Loading "+file.name+"...");
   try{
-    console.log("Step 1: Reading file...");
     var buf=await readBuf(file);
-    console.log("Step 2: File read, loading ZIP...");
     zipObj=await JSZip.loadAsync(buf);
-    console.log("Step 3: ZIP loaded, reading relationships...");
     // rId to media path
     var relsXml=await zipObj.file("word/_rels/document.xml.rels").async("text");
     var rIdToPath={};
@@ -586,9 +583,7 @@ async function run(file){
         var rawUrl="data:"+mime+";base64,"+b64;
         item.fullUrl=rawUrl;
         item.thumbUrl=await makeThumbnail(rawUrl);
-        console.log("Calling proxy for image "+(i+1)+"...");
         var alt=await describeImage(b64,mime);
-        console.log("Got alt text for image "+(i+1)+": "+alt.slice(0,50));
         item.altText=alt;item.status="pending";
         if(ta){ta.value=alt;ta.disabled=false;autoResize(ta)}
         renderCard(item,cardEl);autoResizeAll();
