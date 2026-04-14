@@ -1,6 +1,6 @@
 export default {
   async fetch(request, env) {
-    const ALLOWED_ORIGIN = "https://pidactr.github.io";
+    const ALLOWED_ORIGIN = "https://pidactr-alt-text-tool.netlify.app";
 
     if (request.method === "OPTIONS") {
       return new Response(null, {
