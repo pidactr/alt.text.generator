@@ -130,9 +130,11 @@ h1 span{color:#c9a84c}
 <!-- Finalize bar -->
 <div id="finalize-bar">
   <div class="finalize-summary" id="finalize-summary"></div>
-  <button class="btn-gold" onclick="buildDocument()">&#x2713; Apply to Document &amp; Download</button>
-  <br>
-  <button class="btn-ghost" style="margin-top:12px" onclick="resetTool()">&#x1F4C2; Process New Document</button>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:10px">
+    <button class="btn-gold" onclick="approveAll()">&#x2713;&#x2713; Approve All</button>
+    <button class="btn-gold" onclick="buildDocument()">&#x2193; Apply &amp; Download</button>
+  </div>
+  <button class="btn-ghost" style="margin-top:4px" onclick="resetTool()">&#x1F4C2; Process New Document</button>
 </div>
 
 <!-- How it works -->
@@ -370,6 +372,27 @@ async function describeImage(b64,mime){
 // ============================================================
 // REVIEW UI
 // ============================================================
+function approveAll(){
+  // Grab latest textarea values first, then approve everything
+  imageItems.forEach(function(item){
+    var ta=document.getElementById("ta-"+item.rId);
+    if(ta && ta.value.trim().length>0){
+      item.altText=ta.value.trim();
+      item.status="approved";
+    } else if(item.altText && item.altText.trim().length>0){
+      item.status="approved";
+    }
+    // Re-render each card to show approved state
+    var card=document.getElementById("card-"+item.rId);
+    if(card){
+      renderCard(item,card);
+      var ta2=document.getElementById("ta-"+item.rId);
+      if(ta2) autoResize(ta2);
+    }
+  });
+  updateProgress();
+}
+
 function updateProgress(){
   var approved=imageItems.filter(function(i){return i.status==="approved"}).length;
   var skipped=imageItems.filter(function(i){return i.status==="skipped"}).length;
@@ -385,10 +408,38 @@ function updateProgress(){
 
 function renderCard(item,cardEl){
   var badge=item.status==="approved"?'<span class="status-badge badge-approved">Approved</span>':item.status==="skipped"?'<span class="status-badge badge-skipped">Skipped</span>':'<span class="status-badge badge-pending">Pending</span>';
-  var thumb=item.thumbUrl?'<img class="img-thumb" src="'+item.thumbUrl+'" alt="Tap to enlarge" title="Click to enlarge" onclick="openLightbox(\''+(item.fullUrl||item.thumbUrl)+'\')" />':'<div class="img-thumb-placeholder">&#x1F5BC;&#xFE0F;</div>';
+
   cardEl.className="image-card"+(item.status==="approved"?" approved":item.status==="skipped"?" skipped":"");
-  cardEl.innerHTML='<div class="card-header">'+thumb+'<div class="card-meta"><div class="img-label">Image '+item.num+'</div><div class="img-filename">'+item.filename+'</div></div>'+badge+'</div><div class="alt-label">Alt Text</div><textarea class="alt-textarea" id="ta-'+item.rId+'" oninput="autoResize(this)">'+escHtml(item.altText||"")+'</textarea><div class="card-actions"><button class="btn-approve'+(item.status==="approved"?" active":"")+'" onclick="approveItem(\''+item.rId+'\')">Approve</button><button class="btn-skip'+(item.status==="skipped"?" active":"")+'" onclick="skipItem(\''+item.rId+'\')">Skip</button></div>';
-}
+
+  // No onclick attributes in innerHTML — base64 data in onclick corrupts the HTML parser
+  // for all subsequent cards. Use data attributes + addEventListener instead.
+  cardEl.innerHTML=
+    '<div class="card-header">'+
+      (item.thumbUrl?'<img class="img-thumb" src="'+item.thumbUrl+'" alt="Tap to enlarge" title="Click to enlarge" style="cursor:zoom-in"/>':'<div class="img-thumb-placeholder">&#x1F5BC;&#xFE0F;</div>')+
+      '<div class="card-meta">'+
+        '<div class="img-label">Image '+item.num+'</div>'+
+        '<div class="img-filename">'+escHtml(item.filename)+'</div>'+
+      '</div>'+
+      badge+
+    '</div>'+
+    '<div class="alt-label">Alt Text</div>'+
+    '<textarea class="alt-textarea" id="ta-'+item.rId+'" oninput="autoResize(this)">'+escHtml(item.altText||"")+'</textarea>'+
+    '<div class="card-actions">'+
+      '<button class="btn-approve'+(item.status==="approved"?" active":"")+'">Approve</button>'+
+      '<button class="btn-skip'+(item.status==="skipped"?" active":"")+'">Skip</button>'+
+    '</div>';
+
+  // Wire up thumbnail click with JS — never put base64 in an HTML attribute
+  var img=cardEl.querySelector(".img-thumb");
+  if(img){
+    (function(url){ img.addEventListener("click",function(){ openLightbox(url); }); })(item.fullUrl||item.thumbUrl);
+  }
+
+  // Wire up buttons using closure over item.rId — guaranteed correct target
+  var buttons=cardEl.querySelectorAll(".card-actions button");
+  if(buttons[0]) (function(rid){ buttons[0].addEventListener("click",function(){ approveItem(rid); }); })(item.rId);
+  if(buttons[1]) (function(rid){ buttons[1].addEventListener("click",function(){ skipItem(rid); }); })(item.rId);
+
 
 function escHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 
