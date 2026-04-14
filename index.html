@@ -312,66 +312,68 @@ function makeThumbnail(dataUrl){
 // DOCX HELPERS
 // ============================================================
 function findImageParas(docXml){
-  var parts=docXml.split("</w:p>");
+  // Instead of splitting on </w:p> (which misses images in complex layouts),
+  // we scan for every <w:drawing> block directly. This works universally for:
+  // inline images, floating/anchored images, full-page images, multiple images
+  // per paragraph, images in text boxes, tables, and WordArt.
   var found=[];
-  for(var i=0;i<parts.length-1;i++){
-    var seg=parts[i];
-    if(seg.indexOf("w:drawing")!==-1||seg.indexOf("v:imagedata")!==-1||seg.indexOf("pic:pic")!==-1){
-      // Use matchAll to find ALL rIds in this paragraph segment —
-      // Word sometimes places multiple images in a single paragraph
-      // (e.g. when inserted all at once with no spacing).
-      // Using .match() only finds the first one and misses the rest.
-      var allMatches=[...seg.matchAll(/r:embed="(rId\d+)"/g)];
-      if(allMatches.length>0){
-        allMatches.forEach(function(m){
-          found.push({index:i,rId:m[1]});
-        });
-      }
+  var drawingRe=/<w:drawing>[\s\S]*?<\/w:drawing>/g;
+  var m;
+  while((m=drawingRe.exec(docXml))!==null){
+    var drawing=m[0];
+    var ridMatch=drawing.match(/r:embed="(rId\d+)"/);
+    if(ridMatch){
+      found.push({rId:ridMatch[1], pos:m.index, len:drawing.length});
     }
   }
-  return {parts:parts,found:found};
+  // Return found array — pos/len used for injection, no parts array needed
+  return {parts:null, found:found};
 }
 
-function stripAltText(seg){
-  seg=seg.replace(/(wp:docPr[^>]*?)\s+descr="[^"]*"/g,"$1");
-  seg=seg.replace(/(wp:docPr[^>]*?)\s+title="[^"]*"/g,"$1");
-  return seg;
+function stripAltText(xml){
+  // Strip descr and title from ALL wp:docPr elements in the entire XML
+  xml=xml.replace(/(wp:docPr[^>]*?)\s+descr="[^"]*"/g,"$1");
+  xml=xml.replace(/(wp:docPr[^>]*?)\s+title="[^"]*"/g,"$1");
+  return xml;
 }
 
-function setAltText(seg,desc){
+function setAltTextForRid(xml, rId, desc){
+  // Find the specific w:drawing containing this rId and patch its wp:docPr
   var e=escXml(desc);
-  if(/wp:docPr[^>]*\sdescr=/.test(seg)) return seg.replace(/(wp:docPr[^>]*\s)descr="[^"]*"/,"$1descr=\""+e+"\"");
-  if(/wp:docPr/.test(seg)) return seg.replace(/(wp:docPr\s)/,"$1descr=\""+e+"\" ");
-  return seg;
+  return xml.replace(/<w:drawing>[\s\S]*?<\/w:drawing>/g, function(drawing){
+    if(drawing.indexOf('r:embed="'+rId+'"')===-1) return drawing;
+    // Patch wp:docPr inside this specific drawing
+    if(/wp:docPr[^>]*\sdescr=/.test(drawing)){
+      return drawing.replace(/(wp:docPr[^>]*\s)descr="[^"]*"/,'$1descr="'+e+'"');
+    }
+    if(/<wp:docPr\s/.test(drawing)){
+      return drawing.replace(/(<wp:docPr\s)/,'$1descr="'+e+'" ');
+    }
+    if(/<wp:docPr\//.test(drawing)){
+      return drawing.replace(/(<wp:docPr)(\/)/,'$1 descr="'+e+'"$2');
+    }
+    if(/<wp:docPr id=/.test(drawing)){
+      return drawing.replace(/(<wp:docPr)(\s)/,'$1 descr="'+e+'"$2');
+    }
+    return drawing;
+  });
 }
 
 function applyAltTexts(approvedMap){
-  var r=findImageParas(rawDocXml);
-  var parts=r.parts; var found=r.found;
-  var result=parts.slice();
-
-  // First pass: strip all existing alt text from every image paragraph
-  var seenIndexes={};
-  for(var i=0;i<found.length;i++){
-    var idx=found[i].index;
-    if(!seenIndexes[idx]){
-      result[idx]=stripAltText(result[idx]);
-      seenIndexes[idx]=true;
-    }
-  }
-
-  // Second pass: inject approved alt texts.
-  // Multiple images can share the same paragraph index — setAltText replaces
-  // only the FIRST unset wp:docPr each call, so calling it repeatedly
-  // on the same segment patches each drawing in sequence.
-  for(var j=0;j<found.length;j++){
-    var fidx=found[j].index; var rId=found[j].rId;
+  // Start from the original unmodified XML every time
+  var xml=rawDocXml;
+  // Strip all existing alt text first
+  xml=stripAltText(xml);
+  // Inject approved alt text for each image by targeting its specific drawing
+  var rIds=Object.keys(approvedMap);
+  for(var i=0;i<rIds.length;i++){
+    var rId=rIds[i];
     var alt=approvedMap[rId];
-    if(typeof alt==="string"&&alt.length>0){
-      result[fidx]=setAltText(result[fidx],alt);
+    if(typeof alt==="string"&&alt.trim().length>0){
+      xml=setAltTextForRid(xml,rId,alt.trim());
     }
   }
-  return result.join("</w:p>");
+  return xml;
 }
 
 // ============================================================
@@ -557,13 +559,15 @@ async function run(file){
     while((m=ctRe.exec(ctXml))!==null)extToMime[m[1].toLowerCase()]=m[2];
     // Find images in document order
     rawDocXml=await zipObj.file("word/document.xml").async("text");
-    var r=findImageParas(rawDocXml);foundImages=r.found;
-    if(r.found.length===0){alert("No images found in this document.");setBusy(false);return}
+    var r=findImageParas(rawDocXml);
+    // Filter found images to only those that are actual image relationships
+    foundImages=r.found.filter(function(f){ return rIdToPath[f.rId]; });
+    if(foundImages.length===0){alert("No images found in this document.");setBusy(false);return}
     // Show review panel, hide upload zone
     zone.style.display="none";reviewPanel.classList.add("on");setBusy(false);
     // Analyze each image
-    for(var i=0;i<r.found.length;i++){
-      var rId=r.found[i].rId;
+    for(var i=0;i<foundImages.length;i++){
+      var rId=foundImages[i].rId;
       var path=rIdToPath[rId];
       var filename=path?path.split("/").pop():"unknown";
       var ext=filename.split(".").pop().toLowerCase();
