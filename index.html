@@ -317,8 +317,16 @@ function findImageParas(docXml){
   for(var i=0;i<parts.length-1;i++){
     var seg=parts[i];
     if(seg.indexOf("w:drawing")!==-1||seg.indexOf("v:imagedata")!==-1||seg.indexOf("pic:pic")!==-1){
-      var m=seg.match(/r:embed="(rId\d+)"/);
-      if(m) found.push({index:i,rId:m[1]});
+      // Use matchAll to find ALL rIds in this paragraph segment —
+      // Word sometimes places multiple images in a single paragraph
+      // (e.g. when inserted all at once with no spacing).
+      // Using .match() only finds the first one and misses the rest.
+      var allMatches=[...seg.matchAll(/r:embed="(rId\d+)"/g)];
+      if(allMatches.length>0){
+        allMatches.forEach(function(m){
+          found.push({index:i,rId:m[1]});
+        });
+      }
     }
   }
   return {parts:parts,found:found};
@@ -341,11 +349,27 @@ function applyAltTexts(approvedMap){
   var r=findImageParas(rawDocXml);
   var parts=r.parts; var found=r.found;
   var result=parts.slice();
+
+  // First pass: strip all existing alt text from every image paragraph
+  var seenIndexes={};
   for(var i=0;i<found.length;i++){
-    var idx=found[i].index; var rId=found[i].rId;
-    result[idx]=stripAltText(result[idx]);
+    var idx=found[i].index;
+    if(!seenIndexes[idx]){
+      result[idx]=stripAltText(result[idx]);
+      seenIndexes[idx]=true;
+    }
+  }
+
+  // Second pass: inject approved alt texts.
+  // Multiple images can share the same paragraph index — setAltText replaces
+  // only the FIRST unset wp:docPr each call, so calling it repeatedly
+  // on the same segment patches each drawing in sequence.
+  for(var j=0;j<found.length;j++){
+    var fidx=found[j].index; var rId=found[j].rId;
     var alt=approvedMap[rId];
-    if(typeof alt==="string"&&alt.length>0) result[idx]=setAltText(result[idx],alt);
+    if(typeof alt==="string"&&alt.length>0){
+      result[fidx]=setAltText(result[fidx],alt);
+    }
   }
   return result.join("</w:p>");
 }
